@@ -16,12 +16,21 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
+    <Filter Include="Source\include">
+      <UniqueIdentifier>{897f3f12-1d04-4798-bcbf-5a880cb22ca2}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source\pch">
-      <UniqueIdentifier>{4f9aab71-3d3a-4f53-9573-3449a1f92fb2}</UniqueIdentifier>
+      <UniqueIdentifier>{67a2c4de-2764-42c7-8a9a-f127f653a421}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\WinMain.cpp">
+      <Filter>Source\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\RenderManager.cpp">
+      <Filter>Source\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\GameTimer.cpp">
       <Filter>Source\Private</Filter>
     </ClCompile>
     <ClCompile Include="Source\pch.cpp">
@@ -29,6 +38,18 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\RenderManager.h">
+      <Filter>Source\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DirectXHeaders.h">
+      <Filter>Source\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\GameTimer.h">
+      <Filter>Source\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\directx\d3d12.h">
+      <Filter>Source\include</Filter>
+    </ClInclude>
     <ClInclude Include="Source\pch.h">
       <Filter>Source\pch</Filter>
     </ClInclude>
