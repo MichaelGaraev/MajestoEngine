@@ -5,5 +5,3 @@
 #endif
 
 #include <windows.h>
-
-

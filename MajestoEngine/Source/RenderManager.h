@@ -17,8 +17,6 @@
 #include <exception>
 #include <cassert>
 
-// #include <shellapi.h>
-
 #include "GameTimer.h"
 
 #pragma comment(lib, "d3d12.lib")
@@ -29,13 +27,14 @@ class RenderManager
 {
 public:
     RenderManager() = delete;
-    RenderManager(HINSTANCE hInstance, int nCmdShow);
     RenderManager(const RenderManager& rhs) = delete;
     RenderManager& operator=(const RenderManager& rhs) = delete;
+
+    RenderManager(HINSTANCE hInstance, int nCmdShow);
     ~RenderManager(); // TODO - make it virtual if there is a child
 
     bool Initialization();
-    void Run();
+    int Run();
 
     bool Get4xMsaaState()const;
     void Set4xMsaaState(bool value);
@@ -64,8 +63,6 @@ private:
     void CreateSwapChain();
     void CreateRenderTargetView();
     void CreateDepthStencilBufferAndView();
-    void SetViewport();
-    void SetScissorRectangle();
 
     ID3D12Resource* CurrentBackBuffer() const; // TODO add exeption here
     D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView() const;
@@ -98,12 +95,13 @@ private:
     HWND mHwnd = nullptr;  // main window handle
     std::wstring mMainWndCaption = L"d3d App";
     D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
+    bool mAppPaused = false;  // is the application paused?
+    bool mMinimized = false;  // is the application minimized?
+    bool mMaximized = false;  // is the application maximized?
+    bool mResizing = false;   // are the resize bars being dragged?
     bool mFullscreenState = false;// fullscreen enabled
     int mClientWidth = 800;
     int mClientHeight = 600;
-
-    bool mAppPaused = false;
-    bool mResizing = false;
 
     // Timer
     GameTimer mTimer;
@@ -124,7 +122,6 @@ private:
 
     bool m4xMsaaState = false;  // 4X MSAA enabled
     UINT m4xMsaaQuality = 0; // quality level of 4X MSAA
-    D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels; // TODO - check this
 
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue;
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;

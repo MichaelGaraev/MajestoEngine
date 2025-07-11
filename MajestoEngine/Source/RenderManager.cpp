@@ -41,7 +41,62 @@ LRESULT RenderManager::MsgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
             mTimer.Start();
         }
         return 0;
+        // WM_SIZE is sent when the user resizes the window.  
+    case WM_SIZE:
+        // Save the new client area dimensions.
+        mClientWidth = LOWORD(lParam);
+        mClientHeight = HIWORD(lParam);
+        if (mDevice)
+        {
+            if (wParam == SIZE_MINIMIZED)
+            {
+                mAppPaused = true;
+                mMinimized = true;
+                mMaximized = false;
+            }
+            else if (wParam == SIZE_MAXIMIZED)
+            {
+                mAppPaused = false;
+                mMinimized = false;
+                mMaximized = true;
+                OnResize();
+            }
+            else if (wParam == SIZE_RESTORED)
+            {
 
+                // Restoring from minimized state?
+                if (mMinimized)
+                {
+                    mAppPaused = false;
+                    mMinimized = false;
+                    OnResize();
+                }
+
+                // Restoring from maximized state?
+                else if (mMaximized)
+                {
+                    mAppPaused = false;
+                    mMaximized = false;
+                    OnResize();
+                }
+                else if (mResizing)
+                {
+                    // If user is dragging the resize bars, we do not resize 
+                    // the buffers here because as the user continuously 
+                    // drags the resize bars, a stream of WM_SIZE messages are
+                    // sent to the window, and it would be pointless (and slow)
+                    // to resize for each WM_SIZE message received from dragging
+                    // the resize bars.  So instead, we reset after the user is 
+                    // done resizing the window and releases the resize bars, which 
+                    // sends a WM_EXITSIZEMOVE message.
+                }
+                else // API call such as SetWindowPos or mSwapChain->SetFullscreenState.
+                {
+                    OnResize();
+                }
+            }
+        }
+        return 0;
         // WM_ENTERSIZEMOVE is sent when the user grabs the resize bars.
     case WM_ENTERSIZEMOVE:
         mAppPaused = true;
@@ -89,6 +144,13 @@ LRESULT RenderManager::MsgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
     case WM_MOUSEMOVE:
         OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         return 0;
+    case WM_KEYUP:
+        if (wParam == VK_ESCAPE)
+        {
+            PostQuitMessage(0);
+        }
+        else if ((int)wParam == VK_F2)
+            Set4xMsaaState(!m4xMsaaState);
 
         //case WM_PAINT:
         //{
@@ -118,16 +180,17 @@ bool RenderManager::Initialization()
         return false;
     }
 
+    OnResize();
+
     return true;
 }
 
-void RenderManager::Run()
+int RenderManager::Run()
 {
-    // Run the message loop.
-    MSG msg = { };
-
     mTimer.Reset();
+    MSG msg = {};
 
+    // Run the message loop.
     while (msg.message != WM_QUIT)
     {
         // If there are Window messages then process them.
@@ -152,6 +215,8 @@ void RenderManager::Run()
             }
         }
     }
+
+    return (int)msg.wParam;
 }
 
 void RenderManager::CalculateFrameStats()
@@ -273,7 +338,7 @@ bool RenderManager::InitializationWindow()
     wc.hInstance = WinInstance;
     wc.lpszClassName = L"Sample Window Class";
 
-    RegisterClass(&wc);
+    RegisterClass(&wc); // TODO: Check if here need an validation
 
     // Create the window.
     mHwnd = CreateWindowEx(
@@ -297,33 +362,34 @@ bool RenderManager::InitializationWindow()
     }
 
     ShowWindow(mHwnd, WinCmdShow);
+    UpdateWindow(mHwnd);
 
     return true;
 }
 
 bool RenderManager::InitializationDX12()
 {
-    // Debug info for writing a logs when something go wrong
+// Debug info for writing a logs when something go wrong
 #if defined(DEBUG) || defined(_DEBUG)
     // Enable the D3D12 debug layer.
-    {
-        ComPtr<ID3D12Debug> debugController;
-        ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
-        debugController->EnableDebugLayer();
-    }
+{
+    ComPtr<ID3D12Debug> debugController;
+    ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
+    debugController->EnableDebugLayer();
+}
 #endif
 
 CreateDevice();
 CreateFenceAndDescriptorSize();
 Check4XMSAAQualitySupport();
-CreateCommonQueueAndCommandList();
 
+#ifdef _DEBUG
+LogAdapters();
+#endif
+
+CreateCommonQueueAndCommandList();
 CreateSwapChain();
 CreateDescriptorHeaps();
-CreateRenderTargetView();
-CreateDepthStencilBufferAndView();
-SetViewport();
-SetScissorRectangle();
 
 return true;
 }
@@ -418,13 +484,14 @@ void RenderManager::LogOutputDisplayModes(IDXGIOutput* output, DXGI_FORMAT forma
 
 void RenderManager::CreateDevice()
 {
+    // IDXGIFactory4 has list of adaptors
+    // if hardware device is false, finding software
+    ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)));
+
     // Create devide supported DX12
     HRESULT hardwareResult = D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&mDevice));
 
-    // IDXGIFactory4 has list of adaptors
-    // if hardware device is false, finding software
-
-    ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)));
+    //// Fallback to WARP device.
     if (FAILED(hardwareResult))
     {
         ComPtr<IDXGIAdapter> pWarpAdapter;
@@ -455,6 +522,10 @@ void RenderManager::CreateFenceAndDescriptorSize()
 
 void RenderManager::Check4XMSAAQualitySupport()
 {
+    // Check 4X MSAA quality support for our back buffer format.
+    // All Direct3D 11 capable devices support 4X MSAA for all render 
+    // target formats, so we only need to check quality support.
+    D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
     msQualityLevels.Format = mBackBufferFormat;
     msQualityLevels.SampleCount = 4;
     msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
@@ -513,8 +584,8 @@ void RenderManager::CreateSwapChain()
     sd.BufferDesc.Format = mBackBufferFormat;
     sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
     sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-    sd.SampleDesc.Count = 1;//m4xMsaaState ? 4 : 1;
-    sd.SampleDesc.Quality = 0;//m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+    sd.SampleDesc.Count = m4xMsaaState ? 4 : 1;                         //if smth wrong here place 1
+    sd.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;    // if smth wrong here place 0
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     sd.BufferCount = SwapChainBufferCount;
     sd.OutputWindow = mHwnd;
@@ -557,7 +628,44 @@ void RenderManager::CreateDescriptorHeaps()
 
 void RenderManager::OnResize()
 {
+    assert(mDevice);
+    assert(mSwapChain);
+    assert(mDirectCmdListAlloc);
 
+    // Flush before changing any resources.
+    FlushCommandQueue();
+
+    ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+    // Release the previous resources we will be recreating.
+    for (int i = 0; i < SwapChainBufferCount; ++i)
+        mSwapChainBuffer[i].Reset();
+    mDepthStencilBuffer.Reset();
+
+    // Resize the swap chain.
+    ThrowIfFailed(mSwapChain->ResizeBuffers(
+        SwapChainBufferCount,
+        mClientWidth, mClientHeight,
+        mBackBufferFormat,
+        DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
+
+    mCurrBackBuffer = 0;
+
+    CreateRenderTargetView();
+    CreateDepthStencilBufferAndView();
+
+    // Wait until resize is complete.
+    FlushCommandQueue();
+
+    // Update the viewport transform to cover the client area.
+    mScreenViewport.TopLeftX = 0;
+    mScreenViewport.TopLeftY = 0;
+    mScreenViewport.Width = static_cast<float>(mClientWidth);
+    mScreenViewport.Height = static_cast<float>(mClientHeight);
+    mScreenViewport.MinDepth = 0.0f;
+    mScreenViewport.MaxDepth = 1.0f;
+
+    mScissorRect = { 0, 0, mClientWidth, mClientHeight };
 }
 
 void RenderManager::CreateRenderTargetView()
@@ -570,10 +678,8 @@ void RenderManager::CreateRenderTargetView()
             i,
             IID_PPV_ARGS(&mSwapChainBuffer[i])
         ));
-
         // Create an RTV to it.
         mDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
-
         // Next entry in heap.
         rtvHeapHandle.Offset(1, mRtvDescriptorSize);
     }
@@ -589,9 +695,16 @@ void RenderManager::CreateDepthStencilBufferAndView()
     depthStencilDesc.Height = mClientHeight;
     depthStencilDesc.DepthOrArraySize = 1;
     depthStencilDesc.MipLevels = 1;
-    depthStencilDesc.Format = mDepthStencilFormat;
-    depthStencilDesc.SampleDesc.Count = 1;// m4xMsaaState ? 4 : 1;
-    depthStencilDesc.SampleDesc.Quality = 0;// m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+
+    // Correction 11/12/2016: SSAO chapter requires an SRV to the depth buffer to read from 
+    // the depth buffer.  Therefore, because we need to create two views to the same resource:
+    //   1. SRV format: DXGI_FORMAT_R24_UNORM_X8_TYPELESS
+    //   2. DSV Format: DXGI_FORMAT_D24_UNORM_S8_UINT
+    // we need to create the depth buffer resource with a typeless format.  
+    depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+
+    depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+    depthStencilDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
@@ -599,53 +712,30 @@ void RenderManager::CreateDepthStencilBufferAndView()
     optClear.Format = mDepthStencilFormat;
     optClear.DepthStencil.Depth = 1.0f;
     optClear.DepthStencil.Stencil = 0;
-
-    CD3DX12_HEAP_PROPERTIES HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     ThrowIfFailed(mDevice->CreateCommittedResource(
-        &HEAP_PROPERTIES,
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,
         &depthStencilDesc,
         D3D12_RESOURCE_STATE_COMMON,
         &optClear,
-        IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())
-    ));
+        IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
 
-    // Create descriptor to mip level 0 of entire resource using the
-    // format of the resource.
-    mDevice->CreateDepthStencilView(
-        mDepthStencilBuffer.Get(),
-        nullptr,
-        DepthStencilView()
-    );
+    // Create descriptor to mip level 0 of entire resource using the format of the resource.
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+    dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsvDesc.Format = mDepthStencilFormat;
+    dsvDesc.Texture2D.MipSlice = 0;
+    mDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
 
     // Transition the resource from its initial state to be used as a depth buffer.
-    CD3DX12_RESOURCE_BARRIER RESOURCE_BARRIER = CD3DX12_RESOURCE_BARRIER::Transition(
-        mDepthStencilBuffer.Get(),
-        D3D12_RESOURCE_STATE_COMMON,
-        D3D12_RESOURCE_STATE_DEPTH_WRITE
-    );
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
+        D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
 
-    mCommandList->ResourceBarrier(1, &RESOURCE_BARRIER);
-}
-
-void RenderManager::SetViewport()
-{
-    D3D12_VIEWPORT vp;
-    vp.TopLeftX = 0.0f;
-    vp.TopLeftY = 0.0f;
-    vp.Width = static_cast<float>(mClientWidth);
-    vp.Height = static_cast<float>(mClientHeight);
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-
-    mCommandList->RSSetViewports(1, &vp);
-}
-
-void RenderManager::SetScissorRectangle()
-{
-    mScissorRect = { 0, 0, mClientWidth / 2, mClientHeight / 2 };
-
-    mCommandList->RSSetScissorRects(1, &mScissorRect);
+    // Execute the resize commands.
+    ThrowIfFailed(mCommandList->Close());
+    ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+    mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 }
 
 float RenderManager::AspectRatio() const
