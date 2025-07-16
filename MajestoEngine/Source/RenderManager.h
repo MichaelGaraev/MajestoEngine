@@ -1,27 +1,29 @@
 #pragma once
 
-#include "../../include/directx/d3dx12.h"
+#include "DirectXHeaders.h"
 
-#include <d3d12.h>
-#include <dxgi1_6.h>
-#include <d3dcompiler.h>
-#include <DirectXMath.h>
-
-#include <windows.h>
-#include <Windowsx.h>
 #include <string>
 #include <wrl.h>
-#include <dxgi.h>
-#include <dxgi1_4.h>
-#include <DirectXColors.h>
 #include <exception>
 #include <cassert>
 
 #include "GameTimer.h"
+#include "UploadBuffer.h"
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "D3DCompiler.lib")
 
+struct Vertex
+{
+    DirectX::XMFLOAT3 Pos;
+    DirectX::XMFLOAT4 Color;
+};
+
+//struct ObjectConstants
+//{
+//    DirectX::XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+//};
 
 class RenderManager
 {
@@ -59,9 +61,9 @@ private:
     void CreateDevice();
     void CreateFenceAndDescriptorSize();
     void Check4XMSAAQualitySupport();
-    void CreateCommonQueueAndCommandList();
+    void CreateCommandObjects();
     void CreateSwapChain();
-    void CreateRenderTargetView();
+    void CreateRTV();
     void CreateDepthStencilBufferAndView();
 
     ID3D12Resource* CurrentBackBuffer() const; // TODO add exeption here
@@ -70,6 +72,16 @@ private:
 
     float AspectRatio() const;
     void CalculateFrameStats();
+
+    // Next Step methods
+
+
+    void BuildConstantBufferDescriptorHeaps();     // TODO: Move to CreateDescriptorHeaps method
+    void BuildConstantBuffers();
+    void BuildRootSignature();
+    void BuildShadersAndInputLayout();
+    void BuildTriangleGeometry();
+    void BuildPSO();
 
     // Logs
     //
@@ -82,6 +94,11 @@ private:
     //
     void ThrowIfFailed(HRESULT hr);
     void ReleaseCOM(IUnknown* ComObj); // Try to change it to Template.
+    Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
+        const std::wstring& filename,
+        const D3D_SHADER_MACRO* defines,
+        const std::string& entrypoint,
+        const std::string& target);
 
 private:
 
@@ -139,4 +156,18 @@ private:
 
     D3D12_VIEWPORT mScreenViewport;
     D3D12_RECT mScissorRect;
+
+    // Next Step properties
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
+
+    //std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
+
+    Microsoft::WRL::ComPtr<ID3DBlob> mVSByteCode = nullptr;
+    Microsoft::WRL::ComPtr<ID3DBlob> mPSByteCode = nullptr;
+    std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO = nullptr;
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> mVertexBuffer;
+    D3D12_VERTEX_BUFFER_VIEW mVertexBufferView;
 };

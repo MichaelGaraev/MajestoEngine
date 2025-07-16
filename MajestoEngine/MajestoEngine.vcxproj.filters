@@ -22,6 +22,9 @@
     <Filter Include="Source\pch">
       <UniqueIdentifier>{67a2c4de-2764-42c7-8a9a-f127f653a421}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Shaders">
+      <UniqueIdentifier>{6026781b-18d5-4d8e-886e-3102b361aaba}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\WinMain.cpp">
@@ -36,6 +39,9 @@
     <ClCompile Include="Source\pch.cpp">
       <Filter>Source\pch</Filter>
     </ClCompile>
+    <ClCompile Include="Source\D3DUtils.cpp">
+      <Filter>Source\Private</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\RenderManager.h">
@@ -47,11 +53,14 @@
     <ClInclude Include="Source\GameTimer.h">
       <Filter>Source\Public</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\directx\d3d12.h">
-      <Filter>Source\include</Filter>
-    </ClInclude>
     <ClInclude Include="Source\pch.h">
       <Filter>Source\pch</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\D3DUtils.h">
+      <Filter>Source\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\UploadBuffer.h">
+      <Filter>Source\Public</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

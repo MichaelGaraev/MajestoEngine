@@ -84,17 +84,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\D3DUtils.cpp" />
     <ClCompile Include="Source\GameTimer.cpp" />
     <ClCompile Include="Source\pch.cpp" />
     <ClCompile Include="Source\RenderManager.cpp" />
     <ClCompile Include="Source\WinMain.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\directx\d3d12.h" />
+    <ClInclude Include="Source\D3DUtils.h" />
     <ClInclude Include="Source\DirectXHeaders.h" />
     <ClInclude Include="Source\GameTimer.h" />
     <ClInclude Include="Source\pch.h" />
     <ClInclude Include="Source\RenderManager.h" />
+    <ClInclude Include="Source\UploadBuffer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
